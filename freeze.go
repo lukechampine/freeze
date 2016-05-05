@@ -64,26 +64,10 @@ func Pointer(v interface{}) interface{} {
 		panic("Pointer called on non-pointer type")
 	}
 
-	// allocate new memory to hold the frozen value
+	// freeze the memory pointed to by the interface's data pointer
 	size := typ.Elem().Size()
-	newMem, err := unix.Mmap(-1, 0, int(size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
-	if err != nil {
-		panic(err)
-	}
-
-	// write v to the new memory (have fun figuring this out!)
-	copy(newMem, *(*[]byte)(unsafe.Pointer(&[3]uintptr{(*[2]uintptr)(unsafe.Pointer(&v))[1], size, size})))
-
-	// overwrite v's data pointer to point at the new memory
-	(*[2]uintptr)(unsafe.Pointer(&v))[1] = uintptr(unsafe.Pointer(&newMem[0]))
-
-	// freeze the new memory
-	if err = unix.Mprotect(newMem, unix.PROT_READ); err != nil {
-		panic(err)
-	}
-
-	// set a finalizer to unmap the memory when it would normally be GC'd
-	runtime.SetFinalizer(&newMem, func(b *[]byte) { unix.Munmap(*b) })
+	ptrs := (*[2]uintptr)(unsafe.Pointer(&v))
+	ptrs[1] = copyAndFreeze(ptrs[1], size)
 
 	return v
 }
@@ -96,27 +80,33 @@ func Slice(v interface{}) interface{} {
 		panic("Slice called on non-slice type")
 	}
 
-	// allocate new memory to hold the frozen value
+	// freeze the memory pointed to by the slice's data pointer
 	size := val.Type().Elem().Size() * uintptr(val.Len())
-	newMem, err := unix.Mmap(-1, 0, int(size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
+	slice := (*[3]uintptr)(unsafe.Pointer((*[2]uintptr)(unsafe.Pointer(&v))[1]))
+	slice[0] = copyAndFreeze(slice[0], size)
+
+	return v
+}
+
+// copyAndFreeze copies n bytes from dataptr into new memory, freezes it, and
+// returns a uintptr to the new memory.
+func copyAndFreeze(dataptr, n uintptr) uintptr {
+	// allocate new memory to be frozen
+	newMem, err := unix.Mmap(-1, 0, int(n), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
 	if err != nil {
 		panic(err)
 	}
+	// set a finalizer to unmap the memory when it would normally be GC'd
+	runtime.SetFinalizer(&newMem, func(b *[]byte) { unix.Munmap(*b) })
 
-	// write v's data to the new memory
-	slicePtrs := (*[3]uintptr)(unsafe.Pointer((*[2]uintptr)(unsafe.Pointer(&v))[1]))
-	copy(newMem, *(*[]byte)(unsafe.Pointer(&[3]uintptr{slicePtrs[0], size, size})))
-
-	// overwrite v's data pointer to point at the new memory
-	slicePtrs[0] = uintptr(unsafe.Pointer(&newMem[0]))
+	// copy n bytes into newMem
+	copy(newMem, *(*[]byte)(unsafe.Pointer(&[3]uintptr{dataptr, n, n})))
 
 	// freeze the new memory
 	if err = unix.Mprotect(newMem, unix.PROT_READ); err != nil {
 		panic(err)
 	}
 
-	// set a finalizer to unmap the memory when it would normally be GC'd
-	runtime.SetFinalizer(&newMem, func(b *[]byte) { unix.Munmap(*b) })
-
-	return v
+	// return pointer to new memory
+	return uintptr(unsafe.Pointer(&newMem[0]))
 }
