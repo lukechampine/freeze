@@ -82,7 +82,7 @@ func Slice(v interface{}) interface{} {
 
 	// freeze the memory pointed to by the slice's data pointer
 	size := val.Type().Elem().Size() * uintptr(val.Len())
-	slice := (*[3]uintptr)(unsafe.Pointer((*[2]uintptr)(unsafe.Pointer(&v))[1]))
+	slice := (*[3]uintptr)((*[2]unsafe.Pointer)(unsafe.Pointer(&v))[1]) // should be [2]uintptr, but go vet complains
 	slice[0] = copyAndFreeze(slice[0], size)
 
 	return v
@@ -97,7 +97,7 @@ func copyAndFreeze(dataptr, n uintptr) uintptr {
 		panic(err)
 	}
 	// set a finalizer to unmap the memory when it would normally be GC'd
-	runtime.SetFinalizer(&newMem, func(b *[]byte) { unix.Munmap(*b) })
+	runtime.SetFinalizer(&newMem, func(b *[]byte) { _ = unix.Munmap(*b) })
 
 	// copy n bytes into newMem
 	copy(newMem, *(*[]byte)(unsafe.Pointer(&[3]uintptr{dataptr, n, n})))
