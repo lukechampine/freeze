@@ -39,6 +39,9 @@ Likewise, to freeze a slice:
 It may not be immediately obvious why these functions return a value that must
 be reassigned. The reason is that we are allocating new memory, and therefore
 the pointer must be updated. The same is true of the built-in append function.
+Well, not quite; if a slice has greater capacity than length, then append will
+use that memory. For the same reason, appending to a frozen slice with spare
+capacity will trigger a panic.
 
 Currently, only Unix is supported. Windows support is not planned, because it
 doesn't support a syscall analogous to mprotect.
@@ -73,6 +76,39 @@ func Pointer(v interface{}) interface{} {
 
 	// overwrite v's data pointer to point at the new memory
 	(*[2]uintptr)(unsafe.Pointer(&v))[1] = uintptr(unsafe.Pointer(&newMem[0]))
+
+	// freeze the new memory
+	if err = unix.Mprotect(newMem, unix.PROT_READ); err != nil {
+		panic(err)
+	}
+
+	// set a finalizer to unmap the memory when it would normally be GC'd
+	runtime.SetFinalizer(&newMem, func(b *[]byte) { unix.Munmap(*b) })
+
+	return v
+}
+
+// Slice freezes v, which must be a slice. Future writes to v's memory will
+// result in a panic.
+func Slice(v interface{}) interface{} {
+	val := reflect.ValueOf(v)
+	if val.Kind() != reflect.Slice {
+		panic("Slice called on non-slice type")
+	}
+
+	// allocate new memory to hold the frozen value
+	size := val.Type().Elem().Size() * uintptr(val.Len())
+	newMem, err := unix.Mmap(-1, 0, int(size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
+	if err != nil {
+		panic(err)
+	}
+
+	// write v's data to the new memory
+	slicePtrs := (*[3]uintptr)(unsafe.Pointer((*[2]uintptr)(unsafe.Pointer(&v))[1]))
+	copy(newMem, *(*[]byte)(unsafe.Pointer(&[3]uintptr{slicePtrs[0], size, size})))
+
+	// overwrite v's data pointer to point at the new memory
+	slicePtrs[0] = uintptr(unsafe.Pointer(&newMem[0]))
 
 	// freeze the new memory
 	if err = unix.Mprotect(newMem, unix.PROT_READ); err != nil {

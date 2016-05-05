@@ -49,7 +49,9 @@ xs[0]++        // not ok; panics
 It may not be immediately obvious why these functions return a value that must
 be reassigned. The reason is that we are allocating new memory, and therefore
 the pointer must be updated. The same is true of the built-in `append`
-function.
+function. Well, not quite; if a slice has greater capacity than length, then
+`append` will use that memory. For the same reason, appending to a frozen
+slice with spare capacity will trigger a panic.
 
 Currently, only Unix is supported. Windows support is not planned, because it
 doesn't support a syscall analogous to `mprotect`.
