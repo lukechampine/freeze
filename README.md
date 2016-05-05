@@ -1,6 +1,9 @@
 Freeze
 ======
 
+[![GoDoc](https://godoc.org/github.com/lukechampine/freeze?status.svg)](https://godoc.org/github.com/lukechampine/freeze)
+[![Go Report Card](https://goreportcard.com/badge/github.com/lukechampine/freeze)](https://goreportcard.com/report/github.com/lukechampine/freeze)
+
 ```
 go get github.com/lukechampine/freeze
 ```
@@ -23,7 +26,7 @@ without worrying about them modifying it. With freeze, you can guard against
 these unwanted or intended behaviors.
 
 Two functions are provided: `Pointer` and `Slice`. (I suppose these could have
-been combined, but then the resulting function would have to be called Freeze,
+been combined, but then the resulting function would just be called `Freeze`,
 which stutters.) To freeze a pointer, call `Pointer` like so:
 
 ```go
