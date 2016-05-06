@@ -119,6 +119,12 @@ func Object(v interface{}) interface{} {
 // object updates all pointers in val to point to frozen memory containing the
 // same data.
 func object(val reflect.Value) reflect.Value {
+	// helper function to identify types that may contain pointers
+	hasPtrs := func(t reflect.Type) bool {
+		k := t.Kind()
+		return k == reflect.Ptr || k == reflect.Slice || k == reflect.Struct
+	}
+
 	switch val.Type().Kind() {
 	default:
 		return val
@@ -128,8 +134,8 @@ func object(val reflect.Value) reflect.Value {
 		return reflect.ValueOf(Pointer(val.Interface()))
 
 	case reflect.Slice:
-		et := val.Type().Elem().Kind() // only recurse if elements might have pointers
-		if et == reflect.Ptr || et == reflect.Slice || et == reflect.Struct {
+		// only recurse if elements might have pointers
+		if hasPtrs(val.Type().Elem()) {
 			for i := 0; i < val.Len(); i++ {
 				val.Index(i).Set(object(val.Index(i)))
 			}
@@ -138,8 +144,9 @@ func object(val reflect.Value) reflect.Value {
 
 	case reflect.Struct:
 		for i := 0; i < val.NumField(); i++ {
-			et := val.Field(i).Type().Kind() // only recurse if field might have pointers
-			if et == reflect.Ptr || et == reflect.Slice || et == reflect.Struct {
+			// only recurse if field is exported and might have pointers
+			t := val.Type().Field(i)
+			if !(t.PkgPath != "" && !t.Anonymous) && hasPtrs(t.Type) {
 				val.Field(i).Set(object(val.Field(i)))
 			}
 		}

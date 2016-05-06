@@ -91,7 +91,7 @@ func TestWriteSliceAppend(t *testing.T) {
 	xs = append(xs, 5)
 }
 
-// TestWriteObject tests that modifying a frozen object triggers a panic.
+// TestWriteObject1 tests that modifying a frozen object triggers a panic.
 func TestWriteObject1(t *testing.T) {
 	if !*crash {
 		execCrasher(t, "TestWriteObject1")
@@ -108,7 +108,7 @@ func TestWriteObject1(t *testing.T) {
 	*f.Bs[0] = true
 }
 
-// TestWriteObject tests that modifying a frozen object triggers a panic.
+// TestWriteObject2 tests that modifying a frozen object triggers a panic.
 func TestWriteObject2(t *testing.T) {
 	if !*crash {
 		execCrasher(t, "TestWriteObject2")
@@ -125,7 +125,7 @@ func TestWriteObject2(t *testing.T) {
 	f.Bs[0] = new(bool)
 }
 
-// TestWriteObject tests that modifying a frozen object triggers a panic.
+// TestWriteObject3 tests that modifying a frozen object triggers a panic.
 func TestWriteObject3(t *testing.T) {
 	if !*crash {
 		execCrasher(t, "TestWriteObject3")
@@ -142,7 +142,7 @@ func TestWriteObject3(t *testing.T) {
 	*f.Ip = 8
 }
 
-// TestWriteObject tests that modifying a frozen object triggers a panic.
+// TestWriteObject4 tests that modifying a frozen object triggers a panic.
 func TestWriteObject4(t *testing.T) {
 	if !*crash {
 		execCrasher(t, "TestWriteObject4")
@@ -233,6 +233,18 @@ func TestReadObject(t *testing.T) {
 	if f.Bs[0] && f.Bs[2] == f.Bs[1] {
 		t.Fatal(f.Bs)
 	}
+}
+
+// TestFreezeUnexportedObject tests that Object will not descend into
+// unexported fields.
+func TestFreezeUnexportedObject(t *testing.T) {
+	type foo struct {
+		b []byte
+	}
+	f := &foo{[]byte{1, 2, 3}}
+	f = Object(f).(*foo)
+	// f.b should not be frozen
+	f.b[0] = 9
 }
 
 // TestWriteSlicePointers tests that the elements of a frozen slice of
