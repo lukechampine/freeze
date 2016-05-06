@@ -2,7 +2,7 @@ Freeze
 ======
 
 [![GoDoc](https://godoc.org/github.com/lukechampine/freeze?status.svg)](https://godoc.org/github.com/lukechampine/freeze)
-[![Go Report Card](https://goreportcard.com/badge/github.com/lukechampine/freeze)](https://goreportcard.com/report/github.com/lukechampine/freeze)
+[![Go Report Card](http://goreportcard.com/badge/github.com/lukechampine/freeze)](https://goreportcard.com/report/github.com/lukechampine/freeze)
 
 ```
 go get github.com/lukechampine/freeze
@@ -17,7 +17,7 @@ allocating new memory via `mmap` and copying the data into it. This
 performance penalty should not be prohibitive, but it's something to be aware
 of.
 
-Freezing is useful to providing soft guarantees of immutability. That is: the
+Freezing is useful for providing soft guarantees of immutability. That is: the
 compiler can't prevent you from mutating an frozen object, but the runtime
 can. One of the unfortunate aspects of Go is its limited support for
 constants: structs, slices, and even arrays cannot be declared as consts. This
