@@ -91,6 +91,74 @@ func TestWriteSliceAppend(t *testing.T) {
 	xs = append(xs, 5)
 }
 
+// TestWriteObject tests that modifying a frozen object triggers a panic.
+func TestWriteObject1(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestWriteObject1")
+		return
+	}
+
+	type foo struct {
+		S  string
+		Ip *int
+		Bs []*bool
+	}
+	f := &foo{"foo", new(int), []*bool{new(bool)}}
+	f = Object(f).(*foo)
+	*f.Bs[0] = true
+}
+
+// TestWriteObject tests that modifying a frozen object triggers a panic.
+func TestWriteObject2(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestWriteObject2")
+		return
+	}
+
+	type foo struct {
+		S  string
+		Ip *int
+		Bs []*bool
+	}
+	f := &foo{"foo", new(int), []*bool{new(bool)}}
+	f = Object(f).(*foo)
+	f.Bs[0] = new(bool)
+}
+
+// TestWriteObject tests that modifying a frozen object triggers a panic.
+func TestWriteObject3(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestWriteObject3")
+		return
+	}
+
+	type foo struct {
+		S  string
+		Ip *int
+		Bs []*bool
+	}
+	f := &foo{"foo", new(int), []*bool{new(bool)}}
+	f = Object(f).(*foo)
+	*f.Ip = 8
+}
+
+// TestWriteObject tests that modifying a frozen object triggers a panic.
+func TestWriteObject4(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestWriteObject4")
+		return
+	}
+
+	type foo struct {
+		S  string
+		Ip *int
+		Bs []*bool
+	}
+	f := &foo{"foo", new(int), []*bool{new(bool)}}
+	f = Object(f).(*foo)
+	f.S = "bar"
+}
+
 // TestReadPointer tests that frozen pointers can be read without triggering a
 // panic.
 func TestReadPointer(t *testing.T) {
@@ -143,6 +211,28 @@ func TestReadSlice(t *testing.T) {
 	xs = []int{1, 2, 3}
 	Slice(xs)
 	xs[0]++
+}
+
+// TestReadObject tests that frozen objects can be read without triggering a
+// panic.
+func TestReadObject(t *testing.T) {
+	type foo struct {
+		S  string
+		Ip *int
+		Bs []bool
+	}
+	var i int = 3
+	f := &foo{"foo", &i, []bool{true, false, true}}
+	f = Object(f).(*foo)
+	if f.S != "foo" {
+		t.Fatal(f.S)
+	}
+	if (*f.Ip)*2 != 6 {
+		t.Fatal(*f.Ip)
+	}
+	if f.Bs[0] && f.Bs[2] == f.Bs[1] {
+		t.Fatal(f.Bs)
+	}
 }
 
 // TestWriteSlicePointers tests that the elements of a frozen slice of

@@ -25,20 +25,28 @@ becomes a problem when you want to pass a slice around to many consumers
 without worrying about them modifying it. With freeze, you can guard against
 these unwanted or intended behaviors.
 
-Two functions are provided: `Pointer` and `Slice`. (I suppose these could have
-been combined, but then the resulting function would just be called `Freeze`,
-which stutters.) To freeze a pointer, call `Pointer` like so:
+Three functions are provided: `Pointer`, `Slice`, and `Object`. (Maps are not
+supported.) `Object` is a generic function that recursively freezes either a
+pointer or a slice. That is, calling `Object` on a slice of pointers will
+freeze both the slice and the pointers. To freeze an object:
 
 ```go
-var x int = 3
-xp := freeze.Pointer(&x).(*int)
-println(*xp) // ok; prints 3
-*xp++        // not ok; panics
+type foo struct {
+	X int
+	y bool // yes, freeze works on unexported fields!
+}
+f := foo{3, true}
+fp := freeze.Object(&f).(*foo)
+println(fp.X) // ok; prints 3
+fp.X++        // not ok; panics
 ```
 
+Since `foo` does not contain any pointers, calling `Pointer(&f)` would have
+the same effect.
+
 It is recommended that, where convenient, you reassign the returned pointer to
-its original variable, as with append. Note that in the above example, `x` can
-still be freely modified.
+its original variable, as with `append`. Note that in the above example, `f`
+can still be freely modified.
 
 Likewise, to freeze a slice:
 

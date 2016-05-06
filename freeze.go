@@ -16,17 +16,25 @@ becomes a problem when you want to pass a slice around to many consumers
 without worrying about them modifying it. With freeze, you can guard against
 these unwanted or intended behaviors.
 
-Two functions are provided: Pointer and Slice. (I suppose these could have
-been combined, but then the resulting function would have to be called Freeze,
-which stutters.) To freeze a pointer, call Pointer like so:
+Three functions are provided: Pointer, Slice, and Object. (Maps are not
+supported.) Object is a generic function that freezes either a pointer or a
+slice, but does so recursively. That is, calling Object on a slice of pointers
+will freeze both the slice and the pointers. To freeze an object:
 
-	var x int = 3
-	xp := freeze.Pointer(&x).(*int)
-	println(*xp) // ok; prints 3
-	*xp++        // not ok; panics
+	type foo struct {
+		X int
+		y bool // yes, freeze works on unexported fields!
+	}
+	f := foo{3, true}
+	fp := freeze.Object(&f).(*foo)
+	println(fp.X) // ok; prints 3
+	fp.X++        // not ok; panics
+
+Since foo does not contain any pointers, calling Pointer(&f) would have
+the same effect.
 
 It is recommended that, where convenient, you reassign the returned pointer to
-its original variable, as with append. Note that in the above example, x can
+its original variable, as with append. Note that in the above example, f can
 still be freely modified.
 
 Likewise, to freeze a slice:
@@ -86,6 +94,57 @@ func Slice(v interface{}) interface{} {
 	slice[0] = copyAndFreeze(slice[0], size)
 
 	return v
+}
+
+// Object recursively freezes v, which must be a pointer or a slice. It will
+// follow pointers until "bottoming out," freezing the entire chain. Passing a
+// cyclic structure to Object will result in infinite recursion. Note that
+// Object can only follow pointer fields if they are exported (the pointers
+// themselves will still be frozen).
+func Object(v interface{}) interface{} {
+	val := reflect.ValueOf(v)
+	switch val.Type().Kind() {
+	case reflect.Ptr:
+		val.Elem().Set(object(val.Elem()))
+		return Pointer(v)
+	case reflect.Slice:
+		for i := 0; i < val.Len(); i++ {
+			val.Index(i).Set(object(val.Index(i)))
+		}
+		return Slice(v)
+	}
+	panic("Object called on invalid type")
+}
+
+// object updates all pointers in val to point to frozen memory containing the
+// same data.
+func object(val reflect.Value) reflect.Value {
+	switch val.Type().Kind() {
+	default:
+		return val
+
+	case reflect.Ptr:
+		val.Elem().Set(object(val.Elem()))
+		return reflect.ValueOf(Pointer(val.Interface()))
+
+	case reflect.Slice:
+		et := val.Type().Elem().Kind() // only recurse if elements might have pointers
+		if et == reflect.Ptr || et == reflect.Slice || et == reflect.Struct {
+			for i := 0; i < val.Len(); i++ {
+				val.Index(i).Set(object(val.Index(i)))
+			}
+		}
+		return reflect.ValueOf(Slice(val.Interface()))
+
+	case reflect.Struct:
+		for i := 0; i < val.NumField(); i++ {
+			et := val.Field(i).Type().Kind() // only recurse if field might have pointers
+			if et == reflect.Ptr || et == reflect.Slice || et == reflect.Struct {
+				val.Field(i).Set(object(val.Field(i)))
+			}
+		}
+		return val
+	}
 }
 
 // copyAndFreeze copies n bytes from dataptr into new memory, freezes it, and
