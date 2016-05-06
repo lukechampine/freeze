@@ -31,7 +31,7 @@ func TestWritePointerInt(t *testing.T) {
 		return
 	}
 
-	var x int = 3
+	x := 3
 	xp := Pointer(&x).(*int)
 	*xp++
 }
@@ -88,7 +88,7 @@ func TestWriteSliceAppend(t *testing.T) {
 
 	xs := make([]int, 3, 4)
 	xs = Slice(xs).([]int)
-	xs = append(xs, 5)
+	_ = append(xs, 5)
 }
 
 // TestWriteObject1 tests that modifying a frozen object triggers a panic.
@@ -100,12 +100,12 @@ func TestWriteObject1(t *testing.T) {
 
 	type foo struct {
 		S  string
-		Ip *int
-		Bs []*bool
+		IP *int
+		BS []*bool
 	}
 	f := &foo{"foo", new(int), []*bool{new(bool)}}
 	f = Object(f).(*foo)
-	*f.Bs[0] = true
+	*f.BS[0] = true
 }
 
 // TestWriteObject2 tests that modifying a frozen object triggers a panic.
@@ -117,12 +117,12 @@ func TestWriteObject2(t *testing.T) {
 
 	type foo struct {
 		S  string
-		Ip *int
-		Bs []*bool
+		IP *int
+		BS []*bool
 	}
 	f := &foo{"foo", new(int), []*bool{new(bool)}}
 	f = Object(f).(*foo)
-	f.Bs[0] = new(bool)
+	f.BS[0] = new(bool)
 }
 
 // TestWriteObject3 tests that modifying a frozen object triggers a panic.
@@ -134,12 +134,12 @@ func TestWriteObject3(t *testing.T) {
 
 	type foo struct {
 		S  string
-		Ip *int
-		Bs []*bool
+		IP *int
+		BS []*bool
 	}
 	f := &foo{"foo", new(int), []*bool{new(bool)}}
 	f = Object(f).(*foo)
-	*f.Ip = 8
+	*f.IP = 8
 }
 
 // TestWriteObject4 tests that modifying a frozen object triggers a panic.
@@ -151,8 +151,8 @@ func TestWriteObject4(t *testing.T) {
 
 	type foo struct {
 		S  string
-		Ip *int
-		Bs []*bool
+		IP *int
+		BS []*bool
 	}
 	f := &foo{"foo", new(int), []*bool{new(bool)}}
 	f = Object(f).(*foo)
@@ -162,7 +162,7 @@ func TestWriteObject4(t *testing.T) {
 // TestReadPointer tests that frozen pointers can be read without triggering a
 // panic.
 func TestReadPointer(t *testing.T) {
-	var x int = 3
+	x := 3
 	xp := Pointer(&x).(*int)
 	y := *xp * 2
 	if y != 6 {
@@ -218,20 +218,20 @@ func TestReadSlice(t *testing.T) {
 func TestReadObject(t *testing.T) {
 	type foo struct {
 		S  string
-		Ip *int
-		Bs []bool
+		IP *int
+		BS []bool
 	}
-	var i int = 3
-	f := &foo{"foo", &i, []bool{true, false, true}}
+	x := 3
+	f := &foo{"foo", &x, []bool{true, false, true}}
 	f = Object(f).(*foo)
 	if f.S != "foo" {
 		t.Fatal(f.S)
 	}
-	if (*f.Ip)*2 != 6 {
-		t.Fatal(*f.Ip)
+	if (*f.IP)*2 != 6 {
+		t.Fatal(*f.IP)
 	}
-	if f.Bs[0] && f.Bs[2] == f.Bs[1] {
-		t.Fatal(f.Bs)
+	if f.BS[0] && f.BS[2] == f.BS[1] {
+		t.Fatal(f.BS)
 	}
 }
 
