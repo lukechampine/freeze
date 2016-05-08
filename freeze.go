@@ -136,7 +136,7 @@ func object(val reflect.Value) reflect.Value {
 	// helper function to identify types that may contain pointers
 	hasPtrs := func(t reflect.Type) bool {
 		k := t.Kind()
-		return k == reflect.Ptr || k == reflect.Slice || k == reflect.Struct
+		return k == reflect.Ptr || k == reflect.Array || k == reflect.Slice || k == reflect.Struct
 	}
 
 	switch val.Type().Kind() {
@@ -146,6 +146,15 @@ func object(val reflect.Value) reflect.Value {
 	case reflect.Ptr:
 		val.Elem().Set(object(val.Elem()))
 		return reflect.ValueOf(Pointer(val.Interface()))
+
+	case reflect.Array:
+		// only recurse if elements might have pointers
+		if hasPtrs(val.Type().Elem()) {
+			for i := 0; i < val.Len(); i++ {
+				val.Index(i).Set(object(val.Index(i)))
+			}
+		}
+		return val
 
 	case reflect.Slice:
 		// only recurse if elements might have pointers

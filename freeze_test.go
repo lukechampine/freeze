@@ -177,6 +177,21 @@ func TestWriteObjectSlice(t *testing.T) {
 	*f[0].BS[0] = false
 }
 
+// TestWriteObjectArray tests that modifying a frozen array triggers a panic.
+func TestWriteObjectArray(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestWriteObjectArray")
+		return
+	}
+
+	type foo struct {
+		BS [3]*bool
+	}
+	f := &foo{[3]*bool{new(bool)}}
+	f = Object(f).(*foo)
+	*f.BS[0] = true
+}
+
 // TestWriteObjectTwice tests that freezing an object twice triggers a panic.
 func TestWriteObjectTwice(t *testing.T) {
 	if !*crash {
@@ -275,6 +290,13 @@ func TestReadObject(t *testing.T) {
 	}
 	if *fs[0].BS[0] && *fs[0].BS[2] == *fs[0].BS[1] {
 		t.Fatal(fs[0].BS)
+	}
+
+	// array should also work
+	arr := [3][]int{{1, 2, 3}, nil, {4, 5, 6}}
+	ap := Object(&arr).(*[3][]int)
+	if len(ap[0]) != len(ap[2]) {
+		t.Fatal(ap)
 	}
 }
 
