@@ -399,3 +399,33 @@ func TestGarbageCollection(t *testing.T) {
 	_ = Pointer(new(int)).(*int)
 	runtime.GC() // manually verified via coverage inspection; finalizer should have run
 }
+
+// BenchmarkFreezeObject benchmarks freezing a complex object.
+func BenchmarkFreezeObject(b *testing.B) {
+	type foo struct {
+		X []struct {
+			Y *struct {
+				Z [100]int
+			}
+		}
+	}
+
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		f := new(foo)
+		f.X = make([]struct {
+			Y *struct {
+				Z [100]int
+			}
+		}, 100)
+		for i := range f.X {
+			f.X[i].Y = new(struct {
+				Z [100]int
+			})
+		}
+		b.StartTimer()
+		Object(f)
+	}
+
+	b.ReportAllocs()
+}
