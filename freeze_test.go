@@ -223,6 +223,9 @@ func TestReadPointer(t *testing.T) {
 	if y != 6 {
 		t.Fatal(y)
 	}
+
+	// should be able to freeze nil
+	Pointer(nil)
 }
 
 // TestReadSlice tests that frozen slices can be read without triggering a
@@ -255,6 +258,9 @@ func TestReadSlice(t *testing.T) {
 	xs = []int{1, 2, 3}
 	Slice(xs)
 	xs[0]++
+
+	// should be able to freeze nil
+	Slice(nil)
 }
 
 // TestReadObject tests that frozen objects can be read without triggering a
@@ -298,6 +304,9 @@ func TestReadObject(t *testing.T) {
 	if len(ap[0]) != len(ap[2]) {
 		t.Fatal(ap)
 	}
+
+	// should be able to freeze nil
+	Object(nil)
 }
 
 // TestFreezeUnexportedObject tests that Object will not descend into

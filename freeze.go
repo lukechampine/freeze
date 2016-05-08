@@ -81,6 +81,9 @@ import (
 // Pointer freezes v, which must be a pointer. Future writes to v's memory will
 // result in a panic.
 func Pointer(v interface{}) interface{} {
+	if v == nil {
+		return v
+	}
 	typ := reflect.TypeOf(v)
 	if typ.Kind() != reflect.Ptr {
 		panic("Pointer called on non-pointer type")
@@ -97,6 +100,9 @@ func Pointer(v interface{}) interface{} {
 // Slice freezes v, which must be a slice. Future writes to v's memory will
 // result in a panic.
 func Slice(v interface{}) interface{} {
+	if v == nil {
+		return v
+	}
 	val := reflect.ValueOf(v)
 	if val.Kind() != reflect.Slice {
 		panic("Slice called on non-slice type")
@@ -116,18 +122,15 @@ func Slice(v interface{}) interface{} {
 // Object can only follow pointer fields if they are exported (the pointers
 // themselves will still be frozen).
 func Object(v interface{}) interface{} {
-	val := reflect.ValueOf(v)
-	switch val.Type().Kind() {
-	case reflect.Ptr:
-		val.Elem().Set(object(val.Elem()))
-		return Pointer(v)
-	case reflect.Slice:
-		for i := 0; i < val.Len(); i++ {
-			val.Index(i).Set(object(val.Index(i)))
-		}
-		return Slice(v)
+	if v == nil {
+		return v
 	}
-	panic("Object called on invalid type")
+	val := reflect.ValueOf(v)
+	if val.Kind() != reflect.Ptr && val.Kind() != reflect.Slice {
+		panic("Object called on non-slice type")
+	}
+
+	return object(val).Interface()
 }
 
 // object updates all pointers in val to point to frozen memory containing the
@@ -144,6 +147,9 @@ func object(val reflect.Value) reflect.Value {
 		return val
 
 	case reflect.Ptr:
+		if val.IsNil() {
+			return val
+		}
 		val.Elem().Set(object(val.Elem()))
 		return reflect.ValueOf(Pointer(val.Interface()))
 
@@ -157,6 +163,9 @@ func object(val reflect.Value) reflect.Value {
 		return val
 
 	case reflect.Slice:
+		if val.IsNil() {
+			return val
+		}
 		// only recurse if elements might have pointers
 		if hasPtrs(val.Type().Elem()) {
 			for i := 0; i < val.Len(); i++ {
