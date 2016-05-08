@@ -163,9 +163,6 @@ func object(val reflect.Value) reflect.Value {
 		return val
 
 	case reflect.Slice:
-		if val.IsNil() {
-			return val
-		}
 		// only recurse if elements might have pointers
 		if hasPtrs(val.Type().Elem()) {
 			for i := 0; i < val.Len(); i++ {
@@ -189,6 +186,9 @@ func object(val reflect.Value) reflect.Value {
 // copyAndFreeze copies n bytes from dataptr into new memory, freezes it, and
 // returns a uintptr to the new memory.
 func copyAndFreeze(dataptr, n uintptr) uintptr {
+	if n == 0 {
+		return dataptr
+	}
 	// allocate new memory to be frozen
 	newMem, err := unix.Mmap(-1, 0, int(n), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
 	if err != nil {

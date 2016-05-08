@@ -259,8 +259,9 @@ func TestReadSlice(t *testing.T) {
 	Slice(xs)
 	xs[0]++
 
-	// should be able to freeze nil
+	// should be able to freeze nil and empty slice
 	Slice(nil)
+	Slice([]int{})
 }
 
 // TestReadObject tests that frozen objects can be read without triggering a
@@ -297,6 +298,8 @@ func TestReadObject(t *testing.T) {
 	if *fs[0].BS[0] && *fs[0].BS[2] == *fs[0].BS[1] {
 		t.Fatal(fs[0].BS)
 	}
+	// empty non-nil slice
+	Object([]int{})
 
 	// array should also work
 	arr := [3][]int{{1, 2, 3}, nil, {4, 5, 6}}
@@ -307,6 +310,12 @@ func TestReadObject(t *testing.T) {
 
 	// should be able to freeze nil
 	Object(nil)
+	Object([]*int{nil})
+	Object(new(*int))
+
+	// empty object
+	var empty struct{}
+	Object(&empty)
 }
 
 // TestFreezeUnexportedObject tests that Object will not descend into
