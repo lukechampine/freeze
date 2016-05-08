@@ -16,26 +16,28 @@ becomes a problem when you want to pass a slice around to many consumers
 without worrying about them modifying it. With freeze, you can guard against
 these unwanted or intended behaviors.
 
-Three functions are provided: Pointer, Slice, and Object. Object is a generic
-function that freezes either a pointer or a slice, but does so recursively.
-That is, calling Object on a slice of pointers will freeze both the slice and
-the pointers. To freeze an object:
+Three functions are provided: Pointer, Slice, and Object. Each function
+returns a copy of their input that is backed by protected memory. Object is a
+generic function that freezes either a pointer or a slice, but differs from
+Pointer and Slice in that it descends into the object and freezes it
+recursively. That is, calling Object on a slice of pointers will freeze both
+the slice and the pointers. To freeze an object:
 
 	type foo struct {
 		X int
 		y bool // yes, freeze works on unexported fields!
 	}
-	f := foo{3, true}
-	fp := freeze.Object(&f).(*foo)
-	println(fp.X) // ok; prints 3
-	fp.X++        // not ok; panics
+	f := &foo{3, true}
+	f = freeze.Object(f).(*foo)
+	println(f.X) // ok; prints 3
+	f.X++        // not ok; panics
 
-Since foo does not contain any pointers, calling Pointer(&f) would have
-the same effect.
+Note that since foo does not contain any pointers, calling Pointer(f) would
+have the same effect here.
 
-It is recommended that, where convenient, you reassign the returned pointer to
-its original variable, as with append. Note that in the above example, f can
-still be freely modified.
+It is recommended that, where convenient, you reassign the return value to its
+original variable, as with append. Otherwise, you will retain both the mutable
+original and the frozen copy.
 
 Likewise, to freeze a slice:
 
@@ -78,8 +80,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Pointer freezes v, which must be a pointer. Future writes to v's memory will
-// result in a panic.
+// Pointer returns a frozen copy of v, which must be a pointer. Future writes
+// to the copy's memory will result in a panic. In most cases, the copy should
+// be reassigned to v.
 func Pointer(v interface{}) interface{} {
 	if v == nil {
 		return v
@@ -97,8 +100,9 @@ func Pointer(v interface{}) interface{} {
 	return v
 }
 
-// Slice freezes v, which must be a slice. Future writes to v's memory will
-// result in a panic.
+// Slice returns a frozen copy of v, which must be a slice. Future writes to
+// the copy's memory will result in a panic. In most cases, the copy should be
+// reassigned to v.
 func Slice(v interface{}) interface{} {
 	if v == nil {
 		return v
@@ -116,11 +120,11 @@ func Slice(v interface{}) interface{} {
 	return v
 }
 
-// Object recursively freezes v, which must be a pointer or a slice. It will
-// follow pointers until "bottoming out," freezing the entire chain. Passing a
-// cyclic structure to Object will result in infinite recursion. Note that
-// Object can only follow pointer fields if they are exported (the pointers
-// themselves will still be frozen).
+// Object returns a recursively frozen copy of v, which must be a pointer or a
+// slice. It will descend into pointers, arrays, slices, and structs until
+// "bottoming out," freezing the entire chain. Passing a cyclic structure to
+// Object will result in infinite recursion. Note that Object can only descend
+// into exported struct fields (the fields themselves will still be frozen).
 func Object(v interface{}) interface{} {
 	if v == nil {
 		return v
