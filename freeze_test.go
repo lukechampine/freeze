@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"os/exec"
+	"runtime"
 	"testing"
 )
 
@@ -159,6 +160,23 @@ func TestWriteObject4(t *testing.T) {
 	f.S = "bar"
 }
 
+// TestWriteObjectSlice tests that modifying a frozen slice triggers a panic.
+func TestWriteObjectSlice(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestWriteObjectSlice")
+		return
+	}
+
+	type foo struct {
+		S  string
+		IP *int
+		BS []*bool
+	}
+	f := []foo{{"foo", new(int), []*bool{new(bool)}}}
+	f = Object(f).([]foo)
+	*f[0].BS[0] = false
+}
+
 // TestReadPointer tests that frozen pointers can be read without triggering a
 // panic.
 func TestReadPointer(t *testing.T) {
@@ -219,10 +237,11 @@ func TestReadObject(t *testing.T) {
 	type foo struct {
 		S  string
 		IP *int
-		BS []bool
+		BS []*bool
 	}
 	x := 3
-	f := &foo{"foo", &x, []bool{true, false, true}}
+	tru, fals := true, false
+	f := &foo{"foo", &x, []*bool{&tru, &fals, &tru}}
 	f = Object(f).(*foo)
 	if f.S != "foo" {
 		t.Fatal(f.S)
@@ -230,8 +249,21 @@ func TestReadObject(t *testing.T) {
 	if (*f.IP)*2 != 6 {
 		t.Fatal(*f.IP)
 	}
-	if f.BS[0] && f.BS[2] == f.BS[1] {
+	if *f.BS[0] && *f.BS[2] == *f.BS[1] {
 		t.Fatal(f.BS)
+	}
+
+	// slice should also work
+	fs := []foo{{"foo", &x, []*bool{&tru, &fals, &tru}}}
+	fs = Object(fs).([]foo)
+	if fs[0].S != "foo" {
+		t.Fatal(fs[0].S)
+	}
+	if (*fs[0].IP)*2 != 6 {
+		t.Fatal(*fs[0].IP)
+	}
+	if *fs[0].BS[0] && *fs[0].BS[2] == *fs[0].BS[1] {
+		t.Fatal(fs[0].BS)
 	}
 }
 
@@ -256,4 +288,35 @@ func TestWriteSlicePointers(t *testing.T) {
 	if *xs[0] != 1 {
 		t.Fatal(*xs[0])
 	}
+}
+
+// TestIllegalTypes tests that the Pointer, Slice, and Object functions will
+// panic if supplied an invalid type.
+func TestIllegalTypes(t *testing.T) {
+	catchPanic := func(name string) {
+		if r := recover(); r == nil {
+			t.Fatal("test", name, "did not panic")
+		}
+	}
+
+	func() {
+		defer catchPanic("Pointer")
+		Pointer([]byte{})
+	}()
+
+	func() {
+		defer catchPanic("Slice")
+		Slice(new(bool))
+	}()
+
+	func() {
+		defer catchPanic("Object")
+		Object(true)
+	}()
+}
+
+// TestGarbageCollection tests that frozen objects are properly garbage-collected.
+func TestGarbageCollection(t *testing.T) {
+	_ = Pointer(new(int)).(*int)
+	runtime.GC() // manually verified via coverage inspection; finalizer should have run
 }
