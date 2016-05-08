@@ -16,10 +16,10 @@ becomes a problem when you want to pass a slice around to many consumers
 without worrying about them modifying it. With freeze, you can guard against
 these unwanted or intended behaviors.
 
-Three functions are provided: Pointer, Slice, and Object. (Maps are not
-supported.) Object is a generic function that freezes either a pointer or a
-slice, but does so recursively. That is, calling Object on a slice of pointers
-will freeze both the slice and the pointers. To freeze an object:
+Three functions are provided: Pointer, Slice, and Object. Object is a generic
+function that freezes either a pointer or a slice, but does so recursively.
+That is, calling Object on a slice of pointers will freeze both the slice and
+the pointers. To freeze an object:
 
 	type foo struct {
 		X int
@@ -51,8 +51,22 @@ Well, not quite; if a slice has greater capacity than length, then append will
 use that memory. For the same reason, appending to a frozen slice with spare
 capacity will trigger a panic.
 
-Currently, only Unix is supported. Windows support is not planned, because it
-doesn't support a syscall analogous to mprotect.
+Caveats
+
+In general, you can't call Object on the same object twice. This is because
+Object will attempt to rewrite the object's internal pointers -- which is a
+memory modification. Calling Pointer or Slice twice should be fine.
+
+Object cannot descend into unexported struct fields. It can still freeze the
+field itself, but if the field contains a pointer, the data it points to will
+not be frozen.
+
+Maps and channels are not supported, due to the complexity of their internal
+memory layout. They may be supported in the future, but don't count on it. An
+immutable channel wouldn't be very useful anyway.
+
+Unix is the only supported platform. Windows support is not planned, because
+it doesn't support a syscall analogous to mprotect.
 */
 package freeze
 

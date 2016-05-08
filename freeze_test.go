@@ -177,6 +177,17 @@ func TestWriteObjectSlice(t *testing.T) {
 	*f[0].BS[0] = false
 }
 
+// TestWriteObjectTwice tests that freezing an object twice triggers a panic.
+func TestWriteObjectTwice(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestWriteObjectTwice")
+		return
+	}
+
+	i := Object(new(int)).(*int)
+	i = Object(i).(*int)
+}
+
 // TestReadPointer tests that frozen pointers can be read without triggering a
 // panic.
 func TestReadPointer(t *testing.T) {
