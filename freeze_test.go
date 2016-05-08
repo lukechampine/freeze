@@ -192,6 +192,23 @@ func TestWriteObjectArray(t *testing.T) {
 	*f.BS[0] = true
 }
 
+// TestWriteObjectInterface tests that calling impure methods on a frozen
+// interface triggers a panic.
+func TestWriteObjectInterface(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestWriteObjectInterface")
+		return
+	}
+
+	type writer interface {
+		// impure method; see TestReadObject for pure method
+		Write([]byte) (int, error)
+	}
+	var w writer = new(bytes.Buffer)
+	w = Object(w).(writer)
+	w.Write([]byte{1, 2, 3})
+}
+
 // TestWriteObjectTwice tests that freezing an object twice triggers a panic.
 func TestWriteObjectTwice(t *testing.T) {
 	if !*crash {
@@ -316,6 +333,17 @@ func TestReadObject(t *testing.T) {
 	// empty object
 	var empty struct{}
 	Object(&empty)
+
+	// interface with pure method (see TestWriteObjectInterface for an impure
+	// method)
+	type stringer interface {
+		String() string
+	}
+	var s stringer = bytes.NewBufferString("foo")
+	s = Object(s).(stringer)
+	if s.String() != "foo" {
+		t.Fatal(s.String())
+	}
 }
 
 // TestFreezeUnexportedObject tests that Object will not descend into

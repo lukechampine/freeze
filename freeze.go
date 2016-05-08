@@ -46,12 +46,13 @@ Likewise, to freeze a slice:
 	println(xs[0]) // ok; prints 1
 	xs[0]++        // not ok; panics
 
-It may not be immediately obvious why these functions return a value that must
-be reassigned. The reason is that we are allocating new memory, and therefore
-the pointer must be updated. The same is true of the built-in append function.
-Well, not quite; if a slice has greater capacity than length, then append will
-use that memory. For the same reason, appending to a frozen slice with spare
-capacity will trigger a panic.
+Interfaces can also be frozen, since internally they are just pointers to
+objects. The effect of this is that the interface's pure methods can still be
+called, but impure methods cannot. Unfortunately the impurity of a given
+method is defined by the implementation, not the interface. Even a String
+method could conceivably modify some internal state. Furthermore, the caveat
+about unexported struct fields (see below) applies here, so many exported
+objects cannot be completely frozen.
 
 Caveats
 
@@ -62,6 +63,9 @@ memory modification. Calling Pointer or Slice twice should be fine.
 Object cannot descend into unexported struct fields. It can still freeze the
 field itself, but if the field contains a pointer, the data it points to will
 not be frozen.
+
+Appending to a frozen slice will trigger a panic iff len(slice) < cap(slice).
+This is because appending to a full slice will allocate new memory.
 
 Maps and channels are not supported, due to the complexity of their internal
 memory layout. They may be supported in the future, but don't count on it. An
