@@ -92,6 +92,31 @@ func TestWriteSliceAppend(t *testing.T) {
 	_ = append(xs, 5)
 }
 
+// TestWriteMap tests that modifying a frozen map triggers a panic.
+func TestWriteMap(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestWriteMap")
+		return
+	}
+
+	m := map[int]int{1: 1}
+	m = Map(m).(map[int]int)
+	m[1] = 1 // even a no-op overwrite should trigger
+}
+
+// TestDeleteMap tests that deleting an entry from a frozen map triggers a
+// panic.
+func TestDeleteMap(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestDeleteMap")
+		return
+	}
+
+	m := map[int]int{1: 1}
+	m = Map(m).(map[int]int)
+	delete(m, 1)
+}
+
 // TestWriteObject1 tests that modifying a frozen object triggers a panic.
 func TestWriteObject1(t *testing.T) {
 	if !*crash {
@@ -243,6 +268,17 @@ func TestReadPointer(t *testing.T) {
 
 	// should be able to freeze nil
 	Pointer(nil)
+}
+
+// TestReadMap tests that frozen maps can be read without triggering a panic.
+func TestReadMap(t *testing.T) {
+	m := map[int]int{1: 1, 2: 2}
+	m = Map(m).(map[int]int)
+	_, ok1 := m[1]
+	_, ok2 := m[2]
+	if len(m) != 2 || !ok1 || !ok2 {
+		t.Fatal(m)
+	}
 }
 
 // TestReadSlice tests that frozen slices can be read without triggering a

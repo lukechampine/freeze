@@ -1,5 +1,4 @@
 /*
-
 Package freeze enables the "freezing" of data, similar to JavaScript's
 Object.freeze(). A frozen object cannot be modified; attempting to do so
 will result in an unrecoverable panic.
@@ -16,12 +15,13 @@ becomes a problem when you want to pass a slice around to many consumers
 without worrying about them modifying it. With freeze, you can guard against
 these unwanted or intended behaviors.
 
-Three functions are provided: Pointer, Slice, and Object. Each function
-returns a copy of their input that is backed by protected memory. Object is a
-generic function that freezes either a pointer or a slice, but differs from
-Pointer and Slice in that it descends into the object and freezes it
-recursively. That is, calling Object on a slice of pointers will freeze both
-the slice and the pointers. To freeze an object:
+Functions are provided for freezing the three "pointer types:" Pointer, Slice,
+and Map. Each function returns a copy of their input that is backed by
+protected memory. In addition, Object is provided for freezing recursively.
+Given a slice of pointers, Object will prevent modifications to both the
+pointer data and the slice data, while Slice merely does the latter.
+
+To freeze an object:
 
 	type foo struct {
 		X int
@@ -67,9 +67,8 @@ not be frozen.
 Appending to a frozen slice will trigger a panic iff len(slice) < cap(slice).
 This is because appending to a full slice will allocate new memory.
 
-Maps and channels are not supported, due to the complexity of their internal
-memory layout. They may be supported in the future, but don't count on it. An
-immutable channel wouldn't be very useful anyway.
+Map requires allocating two pages. For the specific reason why, see comments
+in the implementation.
 
 Unix is the only supported platform. Windows support is not planned, because
 it doesn't support a syscall analogous to mprotect.
@@ -120,6 +119,25 @@ func Slice(v interface{}) interface{} {
 	size := val.Type().Elem().Size() * uintptr(val.Len())
 	slice := (*[3]uintptr)((*[2]unsafe.Pointer)(unsafe.Pointer(&v))[1]) // should be [2]uintptr, but go vet complains
 	slice[0] = copyAndFreeze(slice[0], size)
+
+	return v
+}
+
+// Map returns a frozen copy of v, which must be a map. Future writes to
+// the copy's memory will result in a panic. In most cases, the copy should be
+// reassigned to v.
+func Map(v interface{}) interface{} {
+	if v == nil {
+		return v
+	}
+	val := reflect.ValueOf(v)
+	if val.Kind() != reflect.Map {
+		panic("Map called on non-map type")
+	}
+
+	// freeze the memory pointed to by the interface's data pointer
+	ptrs := (*[2]uintptr)(unsafe.Pointer(&v))
+	ptrs[1] = mapFreeze(ptrs[1])
 
 	return v
 }
@@ -215,4 +233,51 @@ func copyAndFreeze(dataptr, n uintptr) uintptr {
 
 	// return pointer to new memory
 	return uintptr(unsafe.Pointer(&newMem[0]))
+}
+
+// mapFreezes freezes a map's memory. To make this work, we need to work with
+// the internal map object directly. Firstly, we need to know the size of the
+// hmap object so that we know how many bytes to copy. Secondly, we depend on
+// 'count' being the first field in the struct. Our goal is to freeze only
+// 'count', leaving the rest of the struct mutable. (This is necessary because
+// map iteration modifies the struct.) To accomplish this, we mmap two pages
+// and write the struct onto the boundary between them. The "left" page
+// contains just 'count', and the "right" page contains the rest. We then
+// freeze the left page.
+func mapFreeze(dataptr uintptr) uintptr {
+	// copied from runtime/hmap.go
+	type hmap struct {
+		count      int
+		flags      uint8
+		B          uint8
+		hash0      uint32
+		buckets    unsafe.Pointer
+		oldbuckets unsafe.Pointer
+		nevacuate  uintptr
+		overflow   *[2]*[]unsafe.Pointer
+	}
+	const size = unsafe.Sizeof(hmap{})
+	const offset = unsafe.Sizeof(int(0))
+	pageSize := unix.Getpagesize()
+
+	// allocate two pages
+	newMem, err := unix.Mmap(-1, 0, pageSize+int(size-offset), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
+	if err != nil {
+		panic(err)
+	}
+	// set a finalizer to unmap the memory when it would normally be GC'd
+	runtime.SetFinalizer(&newMem, func(b *[]byte) { _ = unix.Munmap(*b) })
+
+	// the map's memory will straddle the page boundary
+	mapMem := newMem[pageSize-int(offset):]
+
+	// copy the map data
+	copy(mapMem, *(*[]byte)(unsafe.Pointer(&[3]uintptr{dataptr, size, size})))
+
+	// freeze the "right" page
+	if err = unix.Mprotect(newMem[pageSize:], unix.PROT_READ); err != nil {
+		panic(err)
+	}
+
+	return uintptr(unsafe.Pointer(&mapMem[0]))
 }

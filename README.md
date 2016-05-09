@@ -25,12 +25,14 @@ becomes a problem when you want to pass a slice around to many consumers
 without worrying about them modifying it. With freeze, you can guard against
 these unwanted or intended behaviors.
 
-Three functions are provided: `Pointer`, `Slice`, and `Object`. Each function
-returns a copy of their input that is backed by protected memory. `Object` is
-a generic function that freezes either a pointer or a slice, but differs from
-`Pointer` and `Slice` in that it descends into the object and freezes it
-recursively. That is, calling `Object` on a slice of pointers will freeze both
-the slice and the pointers. To freeze an object:
+Functions are provided for freezing the three "pointer types:" `Pointer`,
+`Slice`, and `Map`. Each function returns a copy of their input that is backed
+by protected memory. In addition, `Object` is provided for freezing
+recursively. Given a slice of pointers, `Object` will prevent modifications to
+both the pointer data and the slice data, while `Slice` merely does the
+latter.
+
+To freeze an object:
 
 ```go
 type foo struct {
@@ -80,9 +82,8 @@ not be frozen.
 Appending to a frozen slice will trigger a panic iff `len(slice) < cap(slice)`.
 This is because appending to a full slice will allocate new memory.
 
-Maps and channels are not supported, due to the complexity of their internal
-memory layout. They may be supported in the future, but don't count on it. An
-immutable channel wouldn't be very useful anyway.
+`Map` requires allocating two pages. For the specific reason why, see comments
+in the implementation.
 
 Unix is the only supported platform. Windows support is not planned, because
 it doesn't support a syscall analogous to `mprotect`.
