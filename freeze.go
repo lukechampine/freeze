@@ -152,11 +152,11 @@ func Object(v interface{}) interface{} {
 		return v
 	}
 	val := reflect.ValueOf(v)
-	if val.Kind() != reflect.Ptr && val.Kind() != reflect.Slice {
-		panic("Object called on non-slice type")
+	switch val.Kind() {
+	case reflect.Ptr, reflect.Slice, reflect.Map:
+		return object(val).Interface()
 	}
-
-	return object(val).Interface()
+	panic("Object called on invalid type")
 }
 
 // object updates all pointers in val to point to frozen memory containing the
@@ -164,8 +164,11 @@ func Object(v interface{}) interface{} {
 func object(val reflect.Value) reflect.Value {
 	// we only need to recurse into types that might have pointers
 	hasPtrs := func(t reflect.Type) bool {
-		k := t.Kind()
-		return k == reflect.Ptr || k == reflect.Array || k == reflect.Slice || k == reflect.Struct
+		switch t.Kind() {
+		case reflect.Ptr, reflect.Array, reflect.Slice, reflect.Map, reflect.Struct:
+			return true
+		}
+		return false
 	}
 
 	switch val.Type().Kind() {
@@ -195,6 +198,16 @@ func object(val reflect.Value) reflect.Value {
 			}
 		}
 		return reflect.ValueOf(Slice(val.Interface()))
+
+	case reflect.Map:
+		if hasPtrs(val.Type().Elem()) || hasPtrs(val.Type().Key()) {
+			newMap := reflect.MakeMap(val.Type())
+			for _, key := range val.MapKeys() {
+				newMap.SetMapIndex(object(key), object(val.MapIndex(key)))
+			}
+			val = newMap
+		}
+		return reflect.ValueOf(Map(val.Interface()))
 
 	case reflect.Struct:
 		for i := 0; i < val.NumField(); i++ {
@@ -234,7 +247,7 @@ func copyAndFreeze(dataptr, n uintptr) uintptr {
 	return uintptr(unsafe.Pointer(&newMem[0]))
 }
 
-// mapFreezes freezes a map's memory. To make this work, we need to work with
+// mapFreeze freezes a map's memory. To make this work, we need to work with
 // the internal map object directly. Firstly, we need to know the size of the
 // hmap object so that we know how many bytes to copy. Secondly, we depend on
 // 'count' being the first field in the struct. Our goal is to freeze only

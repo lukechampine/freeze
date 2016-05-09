@@ -217,6 +217,34 @@ func TestWriteObjectArray(t *testing.T) {
 	*f.BS[0] = true
 }
 
+// TestWriteObjectMapKey tests that modifying a frozen map key triggers a
+// panic.
+func TestWriteObjectMapKey(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestWriteObjectMapKey")
+		return
+	}
+
+	m := map[*int]int{new(int): 1}
+	m = Object(m).(map[*int]int)
+	for i := range m {
+		*i = 1
+	}
+}
+
+// TestWriteObjectMapVal tests that modifying a frozen map value triggers a
+// panic.
+func TestWriteObjectMapVal(t *testing.T) {
+	if !*crash {
+		execCrasher(t, "TestWriteObjectMapVal")
+		return
+	}
+
+	m := map[int]*int{1: new(int)}
+	m = Object(m).(map[int]*int)
+	*m[1] = 3
+}
+
 // TestWriteObjectInterface tests that calling impure methods on a frozen
 // interface triggers a panic.
 func TestWriteObjectInterface(t *testing.T) {
@@ -323,6 +351,7 @@ func TestReadSlice(t *testing.T) {
 // TestReadObject tests that frozen objects can be read without triggering a
 // panic.
 func TestReadObject(t *testing.T) {
+	// pointer
 	type foo struct {
 		S  string
 		IP *int
@@ -342,7 +371,7 @@ func TestReadObject(t *testing.T) {
 		t.Fatal(f.BS)
 	}
 
-	// slice should also work
+	// slice
 	fs := []foo{{"foo", &x, []*bool{&tru, &fals, &tru}}}
 	fs = Object(fs).([]foo)
 	if fs[0].S != "foo" {
@@ -357,21 +386,19 @@ func TestReadObject(t *testing.T) {
 	// empty non-nil slice
 	Object([]int{})
 
-	// array should also work
+	// array
 	arr := [3][]int{{1, 2, 3}, nil, {4, 5, 6}}
 	ap := Object(&arr).(*[3][]int)
 	if len(ap[0]) != len(ap[2]) {
 		t.Fatal(ap)
 	}
 
-	// should be able to freeze nil
-	Object(nil)
-	Object([]*int{nil})
-	Object(new(*int))
-
-	// empty object
-	var empty struct{}
-	Object(&empty)
+	// map
+	m := map[int]*foo{1: &foo{"foo", &x, []*bool{&tru, &fals, &tru}}}
+	m = Object(m).(map[int]*foo)
+	if m[1].S != "foo" {
+		t.Fatal(m)
+	}
 
 	// interface with pure method (see TestWriteObjectInterface for an impure
 	// method)
@@ -383,6 +410,16 @@ func TestReadObject(t *testing.T) {
 	if s.String() != "foo" {
 		t.Fatal(s.String())
 	}
+
+	// empty object
+	var empty struct{}
+	Object(&empty)
+
+	// nil
+	Object(nil)
+	Object([]*int{nil})
+	Object(new(*int))
+
 }
 
 // TestFreezeUnexportedObject tests that Object will not descend into
