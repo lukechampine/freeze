@@ -56,6 +56,10 @@ objects cannot be completely frozen.
 
 Caveats
 
+This package depends heavily on the internal representations of the slice and
+map types. These objects are not likely to change, but if they do, this
+package will break.
+
 In general, you can't call Object on the same object twice. This is because
 Object will attempt to rewrite the object's internal pointers -- which is a
 memory modification. Calling Pointer or Slice twice should be fine.
@@ -66,9 +70,6 @@ not be frozen.
 
 Appending to a frozen slice will trigger a panic iff len(slice) < cap(slice).
 This is because appending to a full slice will allocate new memory.
-
-Map requires allocating two pages. For the specific reason why, see comments
-in the implementation.
 
 Unix is the only supported platform. Windows support is not planned, because
 it doesn't support a syscall analogous to mprotect.
@@ -130,14 +131,33 @@ func Map(v interface{}) interface{} {
 	if v == nil {
 		return v
 	}
-	val := reflect.ValueOf(v)
-	if val.Kind() != reflect.Map {
+	typ := reflect.TypeOf(v)
+	if typ.Kind() != reflect.Map {
 		panic("Map called on non-map type")
 	}
 
-	// freeze the memory pointed to by the interface's data pointer
-	ptrs := (*[2]uintptr)(unsafe.Pointer(&v))
-	ptrs[1] = mapFreeze(ptrs[1])
+	// copied from runtime/hmap.go
+	type hmap struct {
+		count      int
+		flags      uint8
+		B          uint8
+		hash0      uint32
+		buckets    uintptr
+		oldbuckets uintptr
+		nevacuate  uintptr
+		overflow   *[2]*[]uintptr
+	}
+
+	// convert v to a mapType so we can access 'B' and 'buckets'
+	m := (*hmap)((*[2]unsafe.Pointer)(unsafe.Pointer(&v))[1])
+
+	// copied from reflect/type.go
+	bucketSize := 8*(1+typ.Key().Size()+typ.Elem().Size()) + unsafe.Sizeof(uintptr(0))
+	// size of map's bucket data is 2^B * bucketSize
+	size := (uintptr(1) << m.B) * bucketSize
+
+	// freeze the map's buckets
+	m.buckets = copyAndFreeze(m.buckets, size)
 
 	return v
 }
@@ -224,7 +244,7 @@ func object(val reflect.Value) reflect.Value {
 // copyAndFreeze copies n bytes from dataptr into new memory, freezes it, and
 // returns a uintptr to the new memory.
 func copyAndFreeze(dataptr, n uintptr) uintptr {
-	if n == 0 {
+	if dataptr == 0 || n == 0 {
 		return dataptr
 	}
 	// allocate new memory to be frozen
@@ -245,51 +265,4 @@ func copyAndFreeze(dataptr, n uintptr) uintptr {
 
 	// return pointer to new memory
 	return uintptr(unsafe.Pointer(&newMem[0]))
-}
-
-// mapFreeze freezes a map's memory. To make this work, we need to work with
-// the internal map object directly. Firstly, we need to know the size of the
-// hmap object so that we know how many bytes to copy. Secondly, we depend on
-// 'count' being the first field in the struct. Our goal is to freeze only
-// 'count', leaving the rest of the struct mutable. (This is necessary because
-// map iteration modifies the struct.) To accomplish this, we mmap two pages
-// and write the struct onto the boundary between them. The "left" page
-// contains just 'count', and the "right" page contains the rest. We then
-// freeze the left page.
-func mapFreeze(dataptr uintptr) uintptr {
-	// copied from runtime/hmap.go
-	type hmap struct {
-		count      int
-		flags      uint8
-		B          uint8
-		hash0      uint32
-		buckets    unsafe.Pointer
-		oldbuckets unsafe.Pointer
-		nevacuate  uintptr
-		overflow   *[2]*[]unsafe.Pointer
-	}
-	const size = unsafe.Sizeof(hmap{})
-	const offset = unsafe.Sizeof(int(0))
-	pageSize := unix.Getpagesize()
-
-	// allocate two pages
-	newMem, err := unix.Mmap(-1, 0, pageSize+int(size-offset), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
-	if err != nil {
-		panic(err)
-	}
-	// set a finalizer to unmap the memory when it would normally be GC'd
-	runtime.SetFinalizer(&newMem, func(b *[]byte) { _ = unix.Munmap(*b) })
-
-	// the map's memory will straddle the page boundary
-	mapMem := newMem[pageSize-int(offset):]
-
-	// copy the map data
-	copy(mapMem, *(*[]byte)(unsafe.Pointer(&[3]uintptr{dataptr, size, size})))
-
-	// freeze the "right" page
-	if err = unix.Mprotect(newMem[pageSize:], unix.PROT_READ); err != nil {
-		panic(err)
-	}
-
-	return uintptr(unsafe.Pointer(&mapMem[0]))
 }

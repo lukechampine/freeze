@@ -71,6 +71,10 @@ objects cannot be completely frozen.
 
 ## Caveats ##
 
+This package depends heavily on the internal representations of the `slice`
+and `map` types. These objects are not likely to change, but if they do, this
+package will break.
+
 In general, you can't call `Object` on the same object twice. This is because
 `Object` will attempt to rewrite the object's internal pointers -- which is a
 memory modification. Calling `Pointer` or `Slice` twice should be fine.
@@ -81,9 +85,6 @@ not be frozen.
 
 Appending to a frozen slice will trigger a panic iff `len(slice) < cap(slice)`.
 This is because appending to a full slice will allocate new memory.
-
-`Map` requires allocating two pages. For the specific reason why, see comments
-in the implementation.
 
 Unix is the only supported platform. Windows support is not planned, because
 it doesn't support a syscall analogous to `mprotect`.
