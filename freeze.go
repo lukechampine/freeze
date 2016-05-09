@@ -162,7 +162,7 @@ func Object(v interface{}) interface{} {
 // object updates all pointers in val to point to frozen memory containing the
 // same data.
 func object(val reflect.Value) reflect.Value {
-	// helper function to identify types that may contain pointers
+	// we only need to recurse into types that might have pointers
 	hasPtrs := func(t reflect.Type) bool {
 		k := t.Kind()
 		return k == reflect.Ptr || k == reflect.Array || k == reflect.Slice || k == reflect.Struct
@@ -175,12 +175,12 @@ func object(val reflect.Value) reflect.Value {
 	case reflect.Ptr:
 		if val.IsNil() {
 			return val
+		} else if hasPtrs(val.Type().Elem()) {
+			val.Elem().Set(object(val.Elem()))
 		}
-		val.Elem().Set(object(val.Elem()))
 		return reflect.ValueOf(Pointer(val.Interface()))
 
 	case reflect.Array:
-		// only recurse if elements might have pointers
 		if hasPtrs(val.Type().Elem()) {
 			for i := 0; i < val.Len(); i++ {
 				val.Index(i).Set(object(val.Index(i)))
@@ -189,7 +189,6 @@ func object(val reflect.Value) reflect.Value {
 		return val
 
 	case reflect.Slice:
-		// only recurse if elements might have pointers
 		if hasPtrs(val.Type().Elem()) {
 			for i := 0; i < val.Len(); i++ {
 				val.Index(i).Set(object(val.Index(i)))
@@ -199,7 +198,7 @@ func object(val reflect.Value) reflect.Value {
 
 	case reflect.Struct:
 		for i := 0; i < val.NumField(); i++ {
-			// only recurse if field is exported and might have pointers
+			// can't recurse into unexported fields
 			t := val.Type().Field(i)
 			if !(t.PkgPath != "" && !t.Anonymous) && hasPtrs(t.Type) {
 				val.Field(i).Set(object(val.Field(i)))

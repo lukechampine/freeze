@@ -241,8 +241,11 @@ func TestWriteObjectTwice(t *testing.T) {
 		return
 	}
 
-	i := Object(new(int)).(*int)
-	i = Object(i).(*int)
+	type foo struct {
+		BS [3]*bool
+	}
+	f := Object(&foo{[3]*bool{new(bool)}}).(*foo)
+	f = Object(f).(*foo)
 }
 
 // TestReadPointer tests that frozen pointers can be read without triggering a
