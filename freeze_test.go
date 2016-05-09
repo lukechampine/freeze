@@ -253,13 +253,13 @@ func TestWriteObjectInterface(t *testing.T) {
 		return
 	}
 
-	type writer interface {
+	type grower interface {
 		// impure method; see TestReadObject for pure method
-		Write([]byte) (int, error)
+		Grow(int)
 	}
-	var w writer = new(bytes.Buffer)
-	w = Object(w).(writer)
-	w.Write([]byte{1, 2, 3})
+	var g grower = new(bytes.Buffer)
+	g = Object(g).(grower)
+	g.Grow(1)
 }
 
 // TestWriteObjectTwice tests that freezing an object twice triggers a panic.
@@ -273,7 +273,7 @@ func TestWriteObjectTwice(t *testing.T) {
 		BS [3]*bool
 	}
 	f := Object(&foo{[3]*bool{new(bool)}}).(*foo)
-	f = Object(f).(*foo)
+	Object(f)
 }
 
 // TestReadPointer tests that frozen pointers can be read without triggering a
@@ -310,6 +310,10 @@ func TestReadMap(t *testing.T) {
 	if len(m) != 2 || !ok1 || !ok2 {
 		t.Fatal(m)
 	}
+
+	// should be able to freeze nil and empty map
+	Map(nil)
+	Map(map[int]int{})
 }
 
 // TestReadSlice tests that frozen slices can be read without triggering a
@@ -456,12 +460,17 @@ func TestIllegalTypes(t *testing.T) {
 
 	func() {
 		defer catchPanic("Pointer")
-		Pointer([]byte{})
+		Pointer(map[int]int{})
 	}()
 
 	func() {
 		defer catchPanic("Slice")
 		Slice(new(bool))
+	}()
+
+	func() {
+		defer catchPanic("Slice")
+		Map([]byte{})
 	}()
 
 	func() {

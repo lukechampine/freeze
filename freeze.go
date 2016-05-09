@@ -125,7 +125,7 @@ func Slice(v interface{}) interface{} {
 
 // Map returns a frozen copy of v, which must be a map. Future writes to
 // the copy's memory will result in a panic. In most cases, the copy should be
-// reassigned to v.
+// reassigned to v. Note that both the keys and values of the map are frozen.
 func Map(v interface{}) interface{} {
 	if v == nil {
 		return v
