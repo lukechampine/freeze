@@ -12,11 +12,6 @@ Package freeze enables the "freezing" of data, similar to JavaScript's
 `Object.freeze()`. A frozen object cannot be modified; attempting to do so
 will result in an unrecoverable panic.
 
-To accomplish this, the `mprotect` syscall is used. Sadly, this necessitates
-allocating new memory via `mmap` and copying the data into it. This
-performance penalty should not be prohibitive, but it's something to be aware
-of.
-
 Freezing is useful for providing soft guarantees of immutability. That is: the
 compiler can't prevent you from mutating an frozen object, but the runtime
 can. One of the unfortunate aspects of Go is its limited support for
@@ -24,6 +19,33 @@ constants: structs, slices, and even arrays cannot be declared as consts. This
 becomes a problem when you want to pass a slice around to many consumers
 without worrying about them modifying it. With freeze, you can guard against
 these unwanted or intended behaviors.
+
+To accomplish this, the `mprotect` syscall is used. Sadly, this necessitates
+allocating new memory via `mmap` and copying the data into it. This
+performance penalty should not be prohibitive, but it's something to be aware
+of.
+
+In case it wasn't clear from the previous paragraph, this package is not
+intended to be used in production. A well-designed API is a much saner solution
+than freezing your data structures. I would even caution against using `freeze`
+in your automated testing, due to its platform-specific nature. `freeze` is
+best used for "one-off" debugging. Something like this:
+
+1. Observe bug
+2. Suspect that shared mutable data is the culprit
+3. Call `freeze.Object` on the data after it is created
+4. Run program again; it crashes
+5. Inspect stack trace to identify where the data was modified
+6. Fix bug
+7. Remove call to `freeze.Object`
+
+Again: **do not use `freeze` in production.** It's a cool proof-of-concept, and
+it can be useful for debugging, but that's about it. Let me put it another way:
+`freeze` imports four packages: `reflect`, `runtime`, `unsafe`, and `syscall`
+(actually `golang.org/x/sys/unix`). Does that sound like a package you want to
+depend on?
+
+Okay, back to the real documention:
 
 Functions are provided for freezing the three "pointer types:" `Pointer`,
 `Slice`, and `Map`. Each function returns a copy of their input that is backed
