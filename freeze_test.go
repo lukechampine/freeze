@@ -398,7 +398,7 @@ func TestReadObject(t *testing.T) {
 	}
 
 	// map
-	m := map[int]*foo{1: &foo{"foo", &x, []*bool{&tru, &fals, &tru}}}
+	m := map[int]*foo{1: {"foo", &x, []*bool{&tru, &fals, &tru}}}
 	m = Object(m).(map[int]*foo)
 	if m[1].S != "foo" {
 		t.Fatal(m)
