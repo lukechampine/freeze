@@ -1,5 +1,4 @@
 /*
-
 Package freeze enables the "freezing" of data, similar to JavaScript's
 Object.freeze(). A frozen object cannot be modified; attempting to do so will
 result in an unrecoverable panic.
@@ -140,8 +139,8 @@ func Slice(v interface{}) interface{} {
 
 	// freeze the memory pointed to by the slice's data pointer
 	size := val.Type().Elem().Size() * uintptr(val.Len())
-	slice := (*[3]uintptr)((*[2]unsafe.Pointer)(unsafe.Pointer(&v))[1]) // should be [2]uintptr, but go vet complains
-	slice[0] = copyAndFreeze(slice[0], size)
+	slice := (*reflect.SliceHeader)((*[2]unsafe.Pointer)(unsafe.Pointer(&v))[1])
+	slice.Data = copyAndFreeze(slice.Data, size)
 
 	return v
 }
@@ -170,7 +169,7 @@ func Map(v interface{}) interface{} {
 		overflow   *[2]*[]uintptr
 	}
 
-	// convert v to a mapType so we can access 'B' and 'buckets'
+	// convert v to a hmap so we can access 'B' and 'buckets'
 	m := (*hmap)((*[2]unsafe.Pointer)(unsafe.Pointer(&v))[1])
 
 	// copied from reflect/type.go
@@ -278,7 +277,7 @@ func copyAndFreeze(dataptr, n uintptr) uintptr {
 	runtime.SetFinalizer(&newMem, func(b *[]byte) { _ = unix.Munmap(*b) })
 
 	// copy n bytes into newMem
-	copy(newMem, *(*[]byte)(unsafe.Pointer(&[3]uintptr{dataptr, n, n})))
+	copy(newMem, *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{dataptr, int(n), int(n)})))
 
 	// freeze the new memory
 	if err = unix.Mprotect(newMem, unix.PROT_READ); err != nil {
