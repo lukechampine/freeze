@@ -183,11 +183,12 @@ func Map(v interface{}) interface{} {
 	return v
 }
 
-// Object returns a recursively frozen copy of v, which must be a pointer or a
-// slice. It will descend into pointers, arrays, slices, and structs until
-// "bottoming out," freezing the entire chain. Passing a cyclic structure to
-// Object will result in infinite recursion. Note that Object can only descend
-// into exported struct fields (the fields themselves will still be frozen).
+// Object returns a recursively frozen copy of v, which must be a pointer,
+// slice, or map. It will descend into pointers, arrays, slices, and structs
+// until "bottoming out," freezing the entire chain. Passing a cyclic
+// structure to Object will result in infinite recursion. Note that Object can
+// only descend into exported struct fields (the fields themselves will still
+// be frozen).
 func Object(v interface{}) interface{} {
 	if v == nil {
 		return v
